@@ -1,0 +1,2 @@
+dearpygui==1.9.0
+schedule==1.2.2
