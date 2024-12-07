@@ -10,13 +10,26 @@ import dearpygui.dearpygui as dpg
 import dearpygui.demo as demo
 from .uartHelper import  UartHelper
 import logging
+import enum
 
 logger = logging.getLogger(__name__)
 
-class GuiHelper( ):
+class GuiAction(enum.Enum):
+    SET_COMMUTATION = 0x01
+    SET_PWM = 0x02
+    SET_START = 0x03
+    SET_CONTROL_MODE = 0x04
+    SET_RPM = 0x05
+    SET_P_VALUE = 0x06
+    SET_I_VALUE = 0x07
+    SET_D_VALUE = 0x08
+    
+    
+
+class GuiHelper():
     
     _uartInstances:list = []
-    _modulationList:list =["Blockkomutirung 120", "Blockkomutirung 180"]
+    _modulationList:list =["Blockkomutirung 120 Unipolar", "Blockkomutirung 120 Bipolar", "Blockkomutirung 180 Unipolar", "Blockkomutirung 180 Bipolar", "S-PWM"]
     _minRPM = 100
     _maxRPM = 15000
     
@@ -65,8 +78,18 @@ class GuiHelper( ):
     
     def _updatePWM(self, sender):
         value = dpg.get_value(sender)
-        logger.info(f"Update pwm to: {value}")
-        self.writeLog(f"Update pwm to: {value}")
+        logger.debug(f"Update pwm to: {value}")
+        self.guiCallback(GuiAction.SET_PWM, value)
+        
+    def _updateRPM(self, sender):
+        value = dpg.get_value(sender)
+        logger.debug(f"Update rpm to: {value}")
+        self.guiCallback(GuiAction.SET_RPM, value)
+    
+    def _updateCommuation(self, sender):
+        value = dpg.get_value(sender)
+        logger.debug(f"Update commutation to: {value}")
+        self.guiCallback(GuiAction.SET_COMMUTATION, value)
     
     def _changeControlMode(self, sender):
         value = dpg.get_value(sender)
@@ -86,8 +109,6 @@ class GuiHelper( ):
             dpg.hide_item(item="rpm_slider")
             dpg.show_item(item="pwm_slider_name")
             dpg.show_item(item="pwm_slider")
-            
-            
         logger.info(f"Update control mode to: {value}")
         
     def _updateCurrentPlot(self, valueA, valueB, valueC):
@@ -136,8 +157,9 @@ class GuiHelper( ):
 # Public calsses
 ########################################################################
    
-    def __init__(self, uartHelper:UartHelper):
+    def __init__(self, uartHelper:UartHelper, guiCallback:callable):
         self.uartHelper = uartHelper
+        self.guiCallback = guiCallback
         logger.info(f"Init version:{__version__}")
         
     def writeLog(self, msg, Tx=False, Rx=False)-> None:
@@ -155,7 +177,6 @@ class GuiHelper( ):
                     valueA:float, valueB:float, valueC:float,
                     rpmTarget:float, rpmActual:float,
                     pwmTarget:float,pwmActual:float):
-        logger.info(f"Add to plot: {pwmTarget =} {pwmActual =} ")
         self._updateTimeAxis()
         self._updateCurrentPlot(valueA, valueB, valueC)
         self._updateRpmPlot(target=rpmTarget, actual=rpmActual)
@@ -209,7 +230,7 @@ class GuiHelper( ):
             dpg.add_spacer(height=30)
             
             dpg.add_text("Select Modulation", indent=15)
-            dpg.add_combo(self._modulationList, tag="modulation_combo", width=250, indent=15)
+            dpg.add_combo(self._modulationList, tag="modulation_combo", width=250, indent=15, callback=self._updateCommuation)
             dpg.add_spacer(height=15)
             
             dpg.add_radio_button(("Open loop", "Closed loop"), callback=self._changeControlMode)
@@ -222,12 +243,12 @@ class GuiHelper( ):
             dpg.add_text("RPM value", tag="rpm_slider_name", indent=15)
             dpg.add_drag_int(tag="rpm_slider", speed=50, tracked=True, format="%d%rpm", 
                              width=250, indent=15, min_value=self._minRPM, max_value=self._maxRPM, 
-                             show=False, callback=self._updatePWM)
+                             show=False, callback=self._updateRPM)
             
             ## Open loop
             dpg.add_text("PWM value", tag="pwm_slider_name", show=False, indent=15)
             dpg.add_drag_int(tag="pwm_slider", speed=0.5, tracked=True, format="%d%%", width=250, 
-                             indent=15, callback=self._updatePWM)
+                             indent=15, callback=self._updatePWM, min_value=0, max_value=100)
             
             dpg.add_spacer(height=50)
             with dpg.theme(tag="start_button_theme"):
@@ -246,9 +267,9 @@ class GuiHelper( ):
                     #dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, i*5)
                     #dpg.add_theme_style(dpg.mvStyleVar_FramePadding, i*3, i*3)
             
-            dpg.add_button(label="Start", width=200, indent=50, height=35)
+            dpg.add_button(label="Start", width=200, indent=50, height=35, callback=lambda: self.guiCallback(GuiAction.SET_START, 1))
             dpg.bind_item_theme(dpg.last_item(), "start_button_theme")
-            dpg.add_button(label="Stop", width=200, indent=50, height=35)
+            dpg.add_button(label="Stop", width=200, indent=50, height=35, callback=lambda: self.guiCallback(GuiAction.SET_START, 0))
             dpg.bind_item_theme(dpg.last_item(), "stop_button_theme")
         
         ######################################################################################  
