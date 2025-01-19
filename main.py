@@ -10,15 +10,15 @@ __author__ = "Philipp Eilmann"
 __version__ = "0.0.1"
 
 import logging
-import moduls.app as app
+from moduls.app import App
 
 
 if __name__ == "__main__":
     """ Main function
     """
     logging.basicConfig(level=logging.INFO)
+    app = App()
     try:
-        app = app.App()
         app.run()
     except KeyboardInterrupt:  
         logging.info("Exit")

@@ -6,9 +6,10 @@
 __author__ = "Philipp Eilmann"
 __version__ = "0.0.1"
 
+from .uartHelper import  UartHelper
+from .models.dataClasses import SystemData
 import dearpygui.dearpygui as dpg
 import dearpygui.demo as demo
-from .uartHelper import  UartHelper
 import logging
 import enum
 
@@ -27,13 +28,14 @@ class GuiAction(enum.Enum):
     
 
 class GuiHelper():
-    
+    _systemData = SystemData()
     _uartInstances:list = []
     _modulationList:list =["Blockkomutirung 120 Unipolar", "Blockkomutirung 120 Bipolar", "Blockkomutirung 180 Unipolar", "Blockkomutirung 180 Bipolar", "S-PWM"]
     _minRPM = 100
     _maxRPM = 15000
     
     _timeStamp:list = [0]
+    _currentList0:list = [0]
     _currentListA:list = [0]
     _currentListB:list = [0]
     _currentListC:list = [0]
@@ -111,12 +113,15 @@ class GuiHelper():
             dpg.show_item(item="pwm_slider")
         logger.info(f"Update control mode to: {value}")
         
-    def _updateCurrentPlot(self, valueA, valueB, valueC):
-        self._currenMax = max([self._currenMax, valueA, valueB, valueC])
-        self._currenMin = min([self._currenMin, valueA, valueB, valueC])
+    def _updateCurrentPlot(self, valueA, valueB, valueC, value0):
+        self._currenMax = max([self._currenMax, valueA, valueB, valueC, value0])
+        self._currenMin = min([self._currenMin, valueA, valueB, valueC, value0])
+        self._currentList0.append(value0)
         self._currentListA.append(valueA)
         self._currentListB.append(valueB)
         self._currentListC.append(valueC)
+        logger.debug(f"Update current plot to: {value0 = } {valueA = } {valueB = } {valueC = }")
+        dpg.set_value('plot_current_0', [self._timeStamp, self._currentList0])
         dpg.set_value('plot_current_a', [self._timeStamp, self._currentListA])
         dpg.set_value('plot_current_b', [self._timeStamp, self._currentListB])
         dpg.set_value('plot_current_c', [self._timeStamp, self._currentListC])
@@ -152,15 +157,30 @@ class GuiHelper():
             dpg.set_axis_limits(self._rpm_Xaxis, self._timeStamp[0] , self._timeStamp[-1])
             dpg.set_axis_limits(self._pwm_Xaxis, self._timeStamp[0] , self._timeStamp[-1])
         
+    def _updateInfoTable(self):
+        for signal in self._systemData.uartSignals:
+            if type(signal.value) == float:
+                dpg.set_value(f"info_{signal.name}", round(signal.value,3))
+            else:
+                dpg.set_value(f"info_{signal.name}", signal.value)
+            
+    def _updateUartSignals(self):
+        for signal in self._systemData.uartSignals:
+            signal.cyclic = dpg.get_value(f"check_{signal.name}")
+            signal.cycleTime = int(dpg.get_value(f"combo_{signal.name}"))
+        
+            
         
 ########################################################################   
 # Public calsses
 ########################################################################
    
-    def __init__(self, uartHelper:UartHelper, guiCallback:callable):
+    def __init__(self, uartHelper:UartHelper, systemData:SystemData ,guiCallback:callable):
         self.uartHelper = uartHelper
         self.guiCallback = guiCallback
         logger.info(f"Init version:{__version__}")
+        self._systemData = systemData
+        
         
     def writeLog(self, msg, Tx=False, Rx=False)-> None:
         
@@ -173,12 +193,12 @@ class GuiHelper():
         
         dpg.bind_item_theme(dpg.last_item(), "log_text_theme")
         
-    def abentToPlot(self, 
+    def abentToPlot(self, value0:float,
                     valueA:float, valueB:float, valueC:float,
                     rpmTarget:float, rpmActual:float,
                     pwmTarget:float,pwmActual:float):
         self._updateTimeAxis()
-        self._updateCurrentPlot(valueA, valueB, valueC)
+        self._updateCurrentPlot(valueA, valueB, valueC, value0)
         self._updateRpmPlot(target=rpmTarget, actual=rpmActual)
         self._updatePwmPlot(target=pwmTarget, actual=pwmActual)
        
@@ -212,6 +232,14 @@ class GuiHelper():
                 dpg.add_menu_item(label="Save Window", callback=self._save_init)
                 dpg.add_menu_item(label="Load Window", callback=self._save_init)
 
+            with dpg.menu(label="UART"):
+                dpg.add_text("Cyclic Requests")
+                for signal in self._systemData.uartSignals:
+                    with dpg.group(horizontal=True):
+                        dpg.add_checkbox(label=signal.name, default_value=signal.cyclic, tag=f"check_{signal.name}")
+                        dpg.add_combo(default_value=signal.cycleTime, items=[60000,30000, 5000, 1000, 500, 200, 100, 50], tag=f"combo_{signal.name}" ,width=100)
+                dpg.add_button(label="Update", callback=self._updateUartSignals)    
+                
             dpg.add_menu_item(label="Help", callback=self._print_me)
             dpg.add_menu_item(label="Demo", callback=lambda:demo.show_demo())
 
@@ -220,17 +248,18 @@ class GuiHelper():
                 dpg.add_button(label="Press Me", callback=self._print_me)
                 dpg.add_color_picker(label="Color Me", callback=self._print_me)
                 
+                
         ######################################################################################
         # Settimgs window
         ######################################################################################
-        with dpg.window(label="Settings", width=300, height=800, pos=(700,0), no_close=True):
+        with dpg.window(label="Settings", width=300, height=581, pos=(700,0), no_close=True):
             dpg.add_text("Select MCU", indent=15)
-            dpg.add_combo(self._uartInstances, tag="uart_combo",  width=250, indent=15)
+            dpg.add_combo(self._uartInstances, default_value=self._uartInstances[-1], tag="uart_combo",  width=250, indent=15)
             dpg.add_button(label="Connect", callback=self._connectToHost, indent=15)
             dpg.add_spacer(height=30)
             
             dpg.add_text("Select Modulation", indent=15)
-            dpg.add_combo(self._modulationList, tag="modulation_combo", width=250, indent=15, callback=self._updateCommuation)
+            dpg.add_combo(self._modulationList,default_value=self._modulationList[0] ,tag="modulation_combo", width=250, indent=15, callback=self._updateCommuation)
             dpg.add_spacer(height=15)
             
             dpg.add_radio_button(("Open loop", "Closed loop"), callback=self._changeControlMode)
@@ -271,7 +300,21 @@ class GuiHelper():
             dpg.bind_item_theme(dpg.last_item(), "start_button_theme")
             dpg.add_button(label="Stop", width=200, indent=50, height=35, callback=lambda: self.guiCallback(GuiAction.SET_START, 0))
             dpg.bind_item_theme(dpg.last_item(), "stop_button_theme")
-        
+
+        ######################################################################################
+        # Info window
+        ######################################################################################
+        with dpg.window(label="Info", width=300, height=200, pos=(700,600), no_close=True):
+            with dpg.table(header_row=False, row_background=True, delay_search=True, tag="table_info"):
+                dpg.add_table_column(width=220, width_fixed=True)
+                dpg.add_table_column(width=80, width_fixed=True)
+                dpg.add_table_column(width=50, width_fixed=True)
+                for signal in self._systemData.uartSignals:
+                    with dpg.table_row():
+                        dpg.add_text(f"{signal.name}")
+                        dpg.add_text(f"{signal.value}", tag=f"info_{signal.name}")
+                        dpg.add_text(f"{signal.unite}")
+                
         ######################################################################################  
         # Plot window 
         ######################################################################################
@@ -296,6 +339,7 @@ class GuiHelper():
                     dpg.add_plot_legend()
                     self._curetn_Xaxis = dpg.add_plot_axis(dpg.mvXAxis, label="", no_tick_labels=True)
                     with dpg.plot_axis(dpg.mvYAxis, label="Current (A)", no_tick_labels=False) as self._curetn_Yaxis:
+                        dpg.add_line_series(self._timeStamp, self._currentList0, label="Current DC", tag="plot_current_0")
                         dpg.add_line_series(self._timeStamp, self._currentListA, label="Current A", tag="plot_current_a")
                         dpg.add_line_series(self._timeStamp, self._currentListA, label="Current B", tag="plot_current_b")
                         dpg.add_line_series(self._timeStamp, self._currentListA, label="Current C", tag="plot_current_c")
@@ -319,6 +363,26 @@ class GuiHelper():
             bool: true if the dearpygui is running
         """
         return dpg.is_dearpygui_running()
+    
+    def updateData(self, data:SystemData):
+        """Update the data in the gui
+
+        Args:
+            data (SystemData): The data to update
+        """
+        self._systemData = data
+        self.abentToPlot(value0=data.current_0, valueA=data.current_a, 
+                         valueB=data.current_b, valueC=data.current_c,
+                         rpmTarget=data.target_rpm, rpmActual=data.rpm,
+                         pwmTarget=data.target_pwm, pwmActual=data.pwm)
+        self._updateInfoTable()
+        # dpg.set_value("plot_current_a", [self._timeStamp, self._currentListA])
+        # dpg.set_value("plot_current_b", [self._timeStamp, self._currentListB])
+        # dpg.set_value("plot_current_c", [self._timeStamp, self._currentListC])
+        # dpg.set_value("plot_rpm_target", [self._timeStamp, self._rpmListTarget])
+        # dpg.set_value("plot_rpm_actual", [self._timeStamp, self._rpmListActual])
+        # dpg.set_value("plot_pwm_target", [self._timeStamp, self._pwmListTarget])
+        # dpg.set_value("plot_pwm_actual", [self._timeStamp, self._pwmListActual])
     
     def renderWindow(self):
         """ This will reander a new frame
