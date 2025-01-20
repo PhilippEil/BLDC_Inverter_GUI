@@ -78,11 +78,13 @@ class App:
 
     def readUART(self):
         message = self.uart.getMassage()
-        if message not in [None, False]:
+        newData = False
+        while message is not None:
             logger.debug(f"Read the message: {message}")
             if message.type == MSG_Type.RESPONSE:
                 for signal in self._SystemData.uartSignals:
                     if signal.index == message.index:
+                        newData = True
                         if signal.allow_negative:
                             signal.update(message.getPayloadSigned())
                             # logger.debug(f"Update {signal.name}: {signal.value} {signal.unite}")
@@ -90,8 +92,6 @@ class App:
                             signal.update(message.getPayloadUnsigned())
                             # logger.debug(f"Update {signal.name}: {signal.value} {signal.unite}")
                         break
-                        
-                self.gui.updateData(self._SystemData)
             
             if message.type == MSG_Type.STATUS_MESSAGE:
                 match message.index:
@@ -106,6 +106,11 @@ class App:
                     case _:
                         logger.error(f"Unknown message index: {message.index}")
                         return
+            if newData:
+                self.gui.updateData(self._SystemData)
+            message = self.uart.getMassage()
+            
+        
             
         
     def run(self):

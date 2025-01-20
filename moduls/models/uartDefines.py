@@ -112,6 +112,7 @@ class UART_Message:
     _rawPayload = b''
     raw = b''
     type, index = 0, 0
+    isValide = True
     
     def __init__(self, type=None, index=None, payload=0):
         if type:
@@ -155,10 +156,14 @@ class UART_Message:
         self.raw = data
         id, self._rawPayload = struct.unpack(self._format, data)
         self.type = MSG_Type(id >> 6)
-        if self.type == MSG_Type.STATUS_MESSAGE:
-            self.index = MSG_INDEX_STATUS(id & 0x3F)
-        else:
-            self.index = MSG_INDEX_PARAM(id & 0x3F)
+        try:
+            if self.type == MSG_Type.STATUS_MESSAGE:
+                self.index = MSG_INDEX_STATUS(id & 0x3F)
+            else:
+                self.index = MSG_INDEX_PARAM(id & 0x3F)
+        except ValueError:
+            logger.error(f"Invalid message index: {hex(id & 0x3F)}")
+            self.isValide = False
 
     def encode(self):
         """Encodes the message into bytes."""
@@ -242,7 +247,7 @@ class UART_Message_Frame:
     def isValide(self):
         """Checks if the message frame is valid by verifying the CRC."""
         crc = self._crc8(self.message_raw)
-        return self.start_byte == self._start_byte_Default and self.end_byte == self._end_byte_Default and self.crc == crc
+        return self.start_byte == self._start_byte_Default and self.end_byte == self._end_byte_Default and self.crc == crc and self.message.isValide
 
     def isAvailable(self):
         """Checks if a new valid message is available."""
