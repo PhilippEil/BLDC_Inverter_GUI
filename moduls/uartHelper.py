@@ -49,6 +49,7 @@ class UartHelper:
         self._start_reading()
         self._start_cyclic_send()
         logger.info(f"Connecting to: {isinstance}")
+        self._updateSignals()
         return True
     
     def disconnect(self) -> bool:
@@ -113,6 +114,17 @@ class UartHelper:
         self.isSending = False
         if self._cyclicSendThread.is_alive():
             self._cyclicSendThread.join()
+            
+    def _updateSignals(self):
+        if not self.ser.is_open:
+            logger.error("Serial port is not open")
+            return
+        for signal in self._uartSignals:
+            message = UART_Message()
+            message.type = MSG_Type.READ_REQUEST
+            message.index = signal.index
+            signal.lastTransmitted = time.time_ns()
+            self.send(message)
     
     def _read_from_port(self):
         frame_size = len(self.rxMessage)
@@ -150,10 +162,18 @@ class UartHelper:
     def _send_cyclic(self):
         while self.isSending:
             for signal in self._uartSignals:
-                if signal.cyclic and signal.lastReceived + (signal.cycleTime * 1000000)< time.time_ns():
+                if signal.valueWritten:
+                    message = UART_Message()
+                    message.type = MSG_Type.WRITE_REQUEST
+                    message.index = signal.index
+                    message.setPayloadSigned(signal.getRaw())
+                    signal.valueWritten = False
+                    self.send(message)
+                
+                if signal.cyclic and signal.lastTransmitted + (signal.cycleTime * 1000000)< time.time_ns():
                     message = UART_Message()
                     message.type = MSG_Type.READ_REQUEST
                     message.index = signal.index
-                    #signal.lastReceived = time.time_ns()
+                    signal.lastTransmitted = time.time_ns()
                     self.send(message)
             time.sleep(0.001)

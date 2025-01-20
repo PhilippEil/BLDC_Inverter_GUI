@@ -7,13 +7,17 @@ Data classes for the application
 
 import dataclasses
 from moduls.models.uartDefines import MSG_INDEX_PARAM
+import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 @dataclasses.dataclass
 class Signale:
     """Data class for the serial signals.
     """
     name: str
-    value: int|float|str
+    value: int|float
     unite: str
     index: MSG_INDEX_PARAM
     factor: float = 1.0
@@ -23,7 +27,8 @@ class Signale:
     cycleTime: int = 1000
     cyclic: bool = False
     lastReceived = 0.0
-    
+    lastTransmitted = 0.0
+    valueWritten:bool = False
     
     def __eq__(self, value):
         return self.index == value
@@ -33,6 +38,28 @@ class Signale:
     
     def __iter__(self):
         return iter(dataclasses.asdict(self))
+    
+    def write(self, value:int|float):
+        if value != self.value:
+            self.value = value
+            self.valueWritten = True
+            
+    def update(self, value:int|float):
+        if value != self.value and not self.valueWritten:
+            if self.isRaw:
+                self.value = value
+                logger.debug(f"Update RAW {self.name}: {self.value} {self.unite}")
+            else:
+                self.value = (value*self.factor) + self.offset
+                logger.debug(f"Update {self.name}: {self.value} {self.unite}")
+        self.lastReceived = time.time_ns()
+
+    
+    def getRaw(self):
+        if not self.isRaw:
+            return int((self.value - self.offset) / self.factor)
+        return self.value
+        
     
     
     
@@ -67,18 +94,21 @@ class SystemData:
     """Data class for the system data.
     """
     uartSignals: UARTSignals = UARTSignals()
+    target_current: float = 0.0
+    target_rpm: int = 0
+    target_pwm: int = 0
+    updateSignalsAtConnect: bool = True
+    
+    
     bat_voltage: float = 0.0
     current_0: float = 0.0
-    target_current: float = 0.0
     current_a: float = 0.0
     current_b: float = 0.0
     current_c: float = 0.0
     temp_motor: float = 0.0
     temp_inverter: float = 0.0
     rpm: int = 0
-    target_rpm: int = 0
     pwm: int = 0
-    target_pwm: int = 0
     controle_method: int = 0
     commutation: int = 0
     swish_freq: int = 0

@@ -5,12 +5,14 @@ This file contains the data classes for the UART communication.
 @Version: 0.0.1
 """
 import struct
-import enum
+from enum import Enum
 import dataclasses
 import time
 import logging
 
-class MSG_Type(enum.Enum):
+logger = logging.getLogger(__name__)
+
+class MSG_Type(Enum):
     """Enum for the message type.
     """
     RESPONSE = 0x0
@@ -19,7 +21,7 @@ class MSG_Type(enum.Enum):
     READ_REQUEST = 0x3
    
    
-class MSG_INDEX_PARAM(enum.Enum):
+class MSG_INDEX_PARAM(Enum):
     """ Enum for the message index.
     """
     VALUE_CURRENT_0 = 0x00
@@ -39,7 +41,7 @@ class MSG_INDEX_PARAM(enum.Enum):
     VALUE_PWM_I = 0x0E
     VALUE_PWM_D = 0x0F
    
-class MSG_INDEX_STATUS(enum.Enum):
+class MSG_INDEX_STATUS(Enum):
     """ Enum for the message index.
     """
     STATUS_OK = 0x00
@@ -47,12 +49,42 @@ class MSG_INDEX_STATUS(enum.Enum):
     STATUS_SYSTEM_ERROR = 0x3e
     STATUS_ERROR = 0x3f
    
-CommutationsType = {
+CommutationsTypeValues = {
     "Blockkomutirung 120 Unipolar": 0x10, 
     "Blockkomutirung 120 Bipolar": 0x11, 
     "Blockkomutirung 180 Unipolar":0x20, 
     "Blockkomutirung 180 Bipolar": 0x21, 
     "S-PWM": 0x30,
+}
+
+SwishFrequencyValues = {
+    "10 MHz": 0x10, 
+    "20 MHz": 0x11, 
+    "40 MHz": 0x20,
+    "50 MHz": 0x21,
+    "80 MHz": 0x30,
+    "100 MHz": 0x31,
+    "200 MHz": 0x40,
+    "400 MHz": 0x41,
+}
+
+ControlMethodValues = {
+    "Open Loop": 0x00,
+    "RPM Control": 0x01,
+    "Current Control": 0x02,
+    "Remote Control": 0x03,
+}
+    
+UpdateRates = {
+    "1 ms": 1,
+    "10 ms": 10,
+    "100 ms": 100,
+    "500 ms": 500,
+    "1 s": 1000,
+    "5 s": 5000,
+    "10 s": 10000,
+    "30 s": 30000,
+    "1 min": 60000,
 }
 
 class UART_Message:

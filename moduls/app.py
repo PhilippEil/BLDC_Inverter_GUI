@@ -2,7 +2,7 @@
 
 from moduls.guiHelper import GuiHelper, GuiAction
 from moduls.uartHelper import UartHelper
-from moduls.models.uartDefines import UART_Message, CommutationsType, MSG_Type, MSG_INDEX_PARAM, MSG_INDEX_STATUS
+from moduls.models.uartDefines import UART_Message, MSG_Type, MSG_INDEX_PARAM, MSG_INDEX_STATUS
 from moduls.models.dataClasses import SystemData, UARTSignals
 import logging
 import atexit
@@ -35,11 +35,6 @@ class App:
                 message.index = MSG_INDEX_PARAM.VALUE_PWM
                 message.setPayloadUnsigned(value)
                 self._SystemData.target_pwm = value
-            case GuiAction.SET_COMMUTATION:
-                message.type = MSG_Type.WRITE_REQUEST
-                message.index = MSG_INDEX_PARAM.VALUE_COMMUTATION
-                message.setPayloadUnsigned(CommutationsType[value])
-                self._SystemData.commutation = CommutationsType[value]
             case GuiAction.SET_START:
                 message.type = MSG_Type.WRITE_REQUEST
                 message.index = MSG_INDEX_PARAM.VALUE_ENABLE
@@ -84,17 +79,16 @@ class App:
     def readUART(self):
         message = self.uart.getMassage()
         if message not in [None, False]:
-            # logger.debug(f"Read the message: {message}")
+            logger.debug(f"Read the message: {message}")
             if message.type == MSG_Type.RESPONSE:
                 for signal in self._SystemData.uartSignals:
                     if signal.index == message.index:
                         if signal.allow_negative:
-                            signal.value = (message.getPayloadSigned()*signal.factor) + signal.offset
-                        elif signal.isRaw:
-                            signal.value = message.getPayloadUnsigned()
+                            signal.update(message.getPayloadSigned())
+                            # logger.debug(f"Update {signal.name}: {signal.value} {signal.unite}")
                         else:
-                            signal.value = (message.getPayloadUnsigned()*signal.factor) + signal.offset
-                        signal.lastReceived = time.time_ns()
+                            signal.update(message.getPayloadUnsigned())
+                            # logger.debug(f"Update {signal.name}: {signal.value} {signal.unite}")
                         break
                         
                 self.gui.updateData(self._SystemData)
