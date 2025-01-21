@@ -26,9 +26,11 @@ class Signale:
     isRaw: bool = False
     cycleTime: int = 1000
     cyclic: bool = False
+    isPersistent: bool = False
     lastReceived = 0.0
     lastTransmitted = 0.0
     valueWritten:bool = False
+    newValue: int|float = 0
     
     def __eq__(self, value):
         return self.index == value
@@ -41,7 +43,9 @@ class Signale:
     
     def write(self, value:int|float):
         if value != self.value:
-            self.value = value
+            if self.isPersistent:
+                self.value = value
+            self.newValue = value
             self.valueWritten = True
             
     def update(self, value:int|float):
@@ -57,8 +61,8 @@ class Signale:
     
     def getRaw(self):
         if not self.isRaw:
-            return int((self.value - self.offset) / self.factor)
-        return self.value
+            return int((self.newValue - self.offset) / self.factor)
+        return self.newValue
         
     
     
@@ -66,23 +70,25 @@ class Signale:
 class UARTSignals:
     """Data class for the UART signals.
     """
+    # todo add support for loading the signals from a json file
     def __init__(self):
-        self.bat_voltage:Signale = Signale("Bat Voltage", 0.0, "V",MSG_INDEX_PARAM.VALUE_BAT_VOLTAGE, 0.01, 0.0, False, False, 30000, True)
-        self.current_0:Signale = Signale("Current 0", 0.0, "A", MSG_INDEX_PARAM.VALUE_CURRENT_0, 0.001, 0.0, True, False, 1000, True)
-        self.current_a:Signale = Signale("Current A", 0.0, "A", MSG_INDEX_PARAM.VALUE_CURRENT_A, 0.001, 0.0, True, False, 1000, True)
-        self.current_b:Signale = Signale("Current B", 0.0, "A", MSG_INDEX_PARAM.VALUE_CURRENT_B, 0.001, 0.0, True, False, 1000, True)
-        self.current_c:Signale = Signale("Current C", 0.0, "A", MSG_INDEX_PARAM.VALUE_CURRENT_C, 0.001, 0.0, True, False, 1000, True)
-        self.temp_motor:Signale = Signale("Motor Temp", 0.0, "°C", MSG_INDEX_PARAM.VALUE_TEMP_MOTOR, 0.1, 0, False, False, 30000, True)
+        self.bat_voltage:Signale = Signale("Bat Voltage", 0.0, "V",MSG_INDEX_PARAM.VALUE_BAT_VOLTAGE, 0.01, 0.0, False, False, 30000, True, False)
+        self.current_0:Signale = Signale("Current 0", 0.0, "A", MSG_INDEX_PARAM.VALUE_CURRENT_0, 0.001, 0.0, True, False, 1000, True, False)
+        self.current_a:Signale = Signale("Current A", 0.0, "A", MSG_INDEX_PARAM.VALUE_CURRENT_A, 0.001, 0.0, True, False, 1000, True, False)
+        self.current_b:Signale = Signale("Current B", 0.0, "A", MSG_INDEX_PARAM.VALUE_CURRENT_B, 0.001, 0.0, True, False, 1000, True, False)
+        self.current_c:Signale = Signale("Current C", 0.0, "A", MSG_INDEX_PARAM.VALUE_CURRENT_C, 0.001, 0.0, True, False, 1000, True, False)
+        self.temp_motor:Signale = Signale("Motor Temp", 0.0, "°C", MSG_INDEX_PARAM.VALUE_TEMP_MOTOR, 0.1, 0, False, False, 30000, True, False)
         self.temp_inverter:Signale = Signale("Inverter Temp", 0.0, "°C", MSG_INDEX_PARAM.VALUE_TEMP_INVERTER, 0.1, 0, False, False, 30000, True)
-        self.rpm:Signale = Signale("RPM", 0, "1/min", MSG_INDEX_PARAM.VALUE_RPM, 1, 0, True, False, 1000, True)
-        self.pwm:Signale = Signale("PWM", 0, "%", MSG_INDEX_PARAM.VALUE_PWM, 1, 0, False, False, 1000, True)
-        self.controle_method:Signale = Signale("Control Method", 0, "", MSG_INDEX_PARAM.VALUE_CONTROLE_METHOD, 1, 0, False, True, 1000)
-        self.commutation:Signale = Signale("Commutation", 0, "", MSG_INDEX_PARAM.VALUE_COMMUTATION, 1, 0, False, True, 1000)
-        self.swish_freq:Signale = Signale("Swish Freq", 0, "Hz", MSG_INDEX_PARAM.VALUE_SWISH_FREQ, 1, 0, False, True, 1000)
-        self.enable:Signale = Signale("Enable", 0, "", MSG_INDEX_PARAM.VALUE_ENABLE, 1, 0, False, True, 1000)
-        self.pwm_p:Signale = Signale("PWM P", 0, "", MSG_INDEX_PARAM.VALUE_PWM_P, 1, 0, False, False, 1000)
-        self.pwm_i:Signale = Signale("PWM I", 0, "", MSG_INDEX_PARAM.VALUE_PWM_I, 1, 0, False, False, 1000)
-        self.pwm_d:Signale = Signale("PWM D", 0, "", MSG_INDEX_PARAM.VALUE_PWM_D, 1, 0, False, False, 1000)
+        self.rpm:Signale = Signale("RPM", 0, "1/min", MSG_INDEX_PARAM.VALUE_RPM, 1, 0, True, False, 1000, True, False)
+        self.pwm:Signale = Signale("PWM", 0, "%", MSG_INDEX_PARAM.VALUE_PWM, 1, 0, False, False, 1000, True, False)
+        self.controle_method:Signale = Signale("Control Method", 0, "", MSG_INDEX_PARAM.VALUE_CONTROLE_METHOD, 1, 0, False, True, 10000, False, True)
+        self.commutation:Signale = Signale("Commutation", 0, "", MSG_INDEX_PARAM.VALUE_COMMUTATION, 1, 0, False, True, 1000, False, True)
+        self.swish_freq:Signale = Signale("Swish Freq", 0, "Hz", MSG_INDEX_PARAM.VALUE_SWISH_FREQ, 1, 0, False, True, 1000, False, True)
+        self.enable:Signale = Signale("Enable", 0, "", MSG_INDEX_PARAM.VALUE_ENABLE, 1, 0, False, True, 1000, False, True)
+        self.pwm_p:Signale = Signale("PWM P", 0, "", MSG_INDEX_PARAM.VALUE_PWM_P, 1, 0, False, False, 1000, False, True)
+        self.pwm_i:Signale = Signale("PWM I", 0, "", MSG_INDEX_PARAM.VALUE_PWM_I, 1, 0, False, False, 1000, False, True)
+        self.pwm_d:Signale = Signale("PWM D", 0, "", MSG_INDEX_PARAM.VALUE_PWM_D, 1, 0, False, False, 1000, False, True)
+
 
     def __iter__(self):
         for attr, value in self.__dict__.items():

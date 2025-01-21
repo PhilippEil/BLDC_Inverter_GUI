@@ -13,6 +13,7 @@ import dearpygui.dearpygui as dpg
 import dearpygui.demo as demo
 import logging
 import enum
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ class GuiHelper():
     _modulationList:list =["Blockkomutirung 120 Unipolar", "Blockkomutirung 120 Bipolar", "Blockkomutirung 180 Unipolar", "Blockkomutirung 180 Bipolar", "S-PWM"]
     _minRPM = 100
     _maxRPM = 15000
+    _timeDisplayed = 100
     
     _timeStamp:list = [0]
     _currentList0:list = [0]
@@ -80,6 +82,12 @@ class GuiHelper():
             if ret:
                 # connected to host.
                 dpg.set_item_label(item=sender, label="Connect")
+                dpg.set_axis_limits_auto(self._curetn_Yaxis)
+                dpg.set_axis_limits_auto(self._rpm_Yaxis)
+                dpg.set_axis_limits_auto(self._pwm_Yaxis)
+                dpg.set_axis_limits_auto(self._curetn_Xaxis)
+                dpg.set_axis_limits_auto(self._rpm_Xaxis)
+                dpg.set_axis_limits_auto(self._pwm_Xaxis)
                 
     def _updateUartInstances(self, sender):
         self._uartInstances = self.uartHelper.listInstances()
@@ -97,7 +105,7 @@ class GuiHelper():
     
     def _updateControlMode(self, sender):
         value = dpg.get_value(sender)
-        if value == "Closed Loop RPM":
+        if value == "RPM Control":
             dpg.show_item(item="p_input")
             dpg.show_item(item="i_input")
             dpg.show_item(item="d_input")
@@ -106,7 +114,7 @@ class GuiHelper():
             dpg.show_item(item="spacer_control")
             dpg.hide_item(item="pwm_slider_name")
             dpg.hide_item(item="pwm_slider")
-        elif value == "Remote":
+        elif value == "Remote Control":
             dpg.hide_item(item="p_input")
             dpg.hide_item(item="i_input")
             dpg.hide_item(item="d_input")
@@ -134,7 +142,6 @@ class GuiHelper():
         self._currentListA.append(valueA)
         self._currentListB.append(valueB)
         self._currentListC.append(valueC)
-        logger.debug(f"Update current plot to: {value0 = } {valueA = } {valueB = } {valueC = }")
         dpg.set_value('plot_current_0', [self._timeStamp, self._currentList0])
         dpg.set_value('plot_current_a', [self._timeStamp, self._currentListA])
         dpg.set_value('plot_current_b', [self._timeStamp, self._currentListB])
@@ -161,11 +168,14 @@ class GuiHelper():
         dpg.set_axis_limits(self._pwm_Yaxis, self._pwmMin*1.05, self._pwmMax*1.05)
     
     def _updateTimeAxis(self):
+        # just increment the time stamp, no real time (for now)
         self._timeStamp.append(self._timeStamp[-1]+1)
-        if len(self._timeStamp) > 100:
-            dpg.set_axis_limits(self._curetn_Xaxis, self._timeStamp[-100] , self._timeStamp[-1])
-            dpg.set_axis_limits(self._rpm_Xaxis, self._timeStamp[-100] , self._timeStamp[-1])
-            dpg.set_axis_limits(self._pwm_Xaxis, self._timeStamp[-100] , self._timeStamp[-1])
+        # self._timeStamp.append(time.time())
+        arraySize = len(self._timeStamp)
+        if arraySize > self._timeDisplayed:
+            dpg.set_axis_limits(self._curetn_Xaxis, self._timeStamp[arraySize-self._timeDisplayed] , self._timeStamp[-1])
+            dpg.set_axis_limits(self._rpm_Xaxis, self._timeStamp[arraySize-self._timeDisplayed] , self._timeStamp[-1])
+            dpg.set_axis_limits(self._pwm_Xaxis, self._timeStamp[arraySize-self._timeDisplayed] , self._timeStamp[-1])
         else:
             dpg.set_axis_limits(self._curetn_Xaxis, self._timeStamp[0] , self._timeStamp[-1])
             dpg.set_axis_limits(self._rpm_Xaxis, self._timeStamp[0] , self._timeStamp[-1])
@@ -190,6 +200,18 @@ class GuiHelper():
             dpg.add_text("BLDC control panel")
             dpg.add_text("Version: 0.0.1")
             dpg.add_text("Author: Philipp Eilmann")
+            
+    def _writeRpm(self, sender):
+        value = dpg.get_value(sender)
+        self._systemData.target_rpm = value
+        self._systemData.uartSignals.rpm.write(value)
+        logger.debug(f"Update RPM to: {value}")
+
+    def _writePwm(self, sender):
+        value = dpg.get_value(sender)
+        self._systemData.target_pwm = value
+        self._systemData.uartSignals.pwm.write(value)
+        logger.debug(f"Update PWM to: {value}")
         
             
         
@@ -244,6 +266,8 @@ class GuiHelper():
             # first argument ids the path to the .ttf or .otf file
             default_font = dpg.add_font("resources/Helvetica.otf", 14)
             heading_font = dpg.add_font("resources/HelveticaBold.otf", 14)
+            button_font = dpg.add_font("resources/HelveticaBold.otf", 13)
+            buttonBig_font = dpg.add_font("resources/HelveticaBold.otf", 25)
             
         dpg.bind_font(default_font)
         #dpg.configure_app(init_file="dpg.ini")  # default file is 'dpg.ini'
@@ -261,15 +285,17 @@ class GuiHelper():
                 dpg.add_menu_item(label="Save Window", callback=self._save_init)
                 dpg.add_menu_item(label="Load Window", callback=self._save_init)
 
-            with dpg.menu(label="UART"):
+            with dpg.menu(label="Signals"):
                 dpg.add_text("Cyclic Requests")
+                dpg.bind_item_font(dpg.last_item(), heading_font)
                 for signal in self._systemData.uartSignals:
                     with dpg.group(horizontal=True):
                         dpg.add_checkbox(label=signal.name, default_value=signal.cyclic, tag=f"check_{signal.name}")
                         default_value = list(UpdateRates.keys())[list(UpdateRates.values()).index(signal.cycleTime)]
                         dpg.add_combo(default_value=default_value, items=list(UpdateRates.keys()), tag=f"combo_{signal.name}" ,width=100)
                 dpg.add_checkbox(label="Update all @ connect", default_value=self._systemData.updateSignalsAtConnect, tag="check_update_all")
-                dpg.add_button(label="Update", callback=self._updateUartSignals)    
+                dpg.add_button(label="Update", width=200 ,callback=self._updateUartSignals)
+                dpg.bind_item_font(dpg.last_item(), heading_font)    
                 
             dpg.add_menu_item(label="Help", callback=self._print_me)
             dpg.add_menu_item(label="Demo", callback=lambda:demo.show_demo())
@@ -278,12 +304,13 @@ class GuiHelper():
         ######################################################################################
         # Settimgs window
         ######################################################################################
-        with dpg.window(label="Settings", width=300, height=581, pos=(700,0), no_close=True, ):
+        with dpg.window(label="Settings", width=300, height=581, pos=(700,0), no_close=True):
             dpg.add_text("Select MCU", indent=15)
             dpg.bind_item_font(dpg.last_item(), heading_font)
             dpg.add_combo(self._uartInstances, default_value=self._uartInstances[-1], tag="uart_combo",  width=250, indent=15)
             with dpg.group(horizontal=True, indent=15):
                 dpg.add_button(label="Connect", width=80 ,callback=self._connectToHost)
+                dpg.bind_item_font(dpg.last_item(), button_font)
                 dpg.add_button(label="Reload", width=80, callback=self._updateUartInstances)
             # dpg.add_spacer(height=5)
             
@@ -322,13 +349,13 @@ class GuiHelper():
             dpg.add_text("RPM value", tag="rpm_slider_name", indent=15)
             dpg.add_drag_int(tag="rpm_slider", speed=50, tracked=True, format="%d%rpm", 
                              width=250, indent=15, min_value=self._minRPM, max_value=self._maxRPM, 
-                             show=False, callback=lambda: self._systemData.uartSignals.rpm.write(dpg.get_value("rpm_slider")))
+                             show=False, callback= self._writeRpm)
             
             ## Open loop
             dpg.add_text("PWM value", tag="pwm_slider_name", show=False, indent=15)
             dpg.add_drag_int(tag="pwm_slider", speed=0.5, tracked=True, format="%d%%", width=250, 
                              indent=15, min_value=0, max_value=100, 
-                             callback=lambda: self._systemData.uartSignals.pwm.write(dpg.get_value("pwm_slider")))
+                             callback= self._writePwm)
             
             
             with dpg.theme(tag="start_button_theme"):
@@ -351,11 +378,11 @@ class GuiHelper():
             dpg.add_button(label="Start", width=200, indent=50, height=35, tag="start_button",
                            callback=lambda: self._systemData.uartSignals.enable.write(1))
             dpg.bind_item_theme(dpg.last_item(), "start_button_theme")
-            dpg.bind_item_font("start_button", heading_font)
+            dpg.bind_item_font("start_button", buttonBig_font)
             dpg.add_button(label="Stop", width=200, indent=50, height=35, tag="stop_button",
                            callback=lambda: self._systemData.uartSignals.enable.write(0))
             dpg.bind_item_theme(dpg.last_item(), "stop_button_theme")
-            dpg.bind_item_font("stop_button", heading_font)
+            dpg.bind_item_font("stop_button", buttonBig_font)
 
         ######################################################################################
         # Info window
@@ -391,7 +418,7 @@ class GuiHelper():
                         dpg.add_line_series(self._timeStamp, self._rpmListTarget, label="Target", tag="plot_rpm_target")
                         dpg.add_line_series(self._timeStamp, self._rpmListActual, label="Actual", tag="plot_rpm_actual")    
                     
-                with dpg.plot(label="Current", pan_mod=2):
+                with dpg.plot(label="Current", zoom_mod=0.5):
                     dpg.add_plot_legend()
                     self._curetn_Xaxis = dpg.add_plot_axis(dpg.mvXAxis, label="", no_tick_labels=True)
                     with dpg.plot_axis(dpg.mvYAxis, label="Current (A)", no_tick_labels=False) as self._curetn_Yaxis:
