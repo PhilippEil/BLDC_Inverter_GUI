@@ -1,9 +1,9 @@
-"""guiHelper.py
- 
+""" guiHelper.py
+This file contains the gui helper class.
 
+@Author: Philipp Eilmann
 """
 
-__author__ = "Philipp Eilmann"
 __version__ = "0.0.1"
 
 from .uartHelper import  UartHelper
@@ -12,27 +12,85 @@ from .models.uartDefines import CommutationsTypeValues, SwishFrequencyValues, Co
 import dearpygui.dearpygui as dpg
 import dearpygui.demo as demo
 import logging
-import enum
-import time
+
 
 logger = logging.getLogger(__name__)
 
-class GuiAction(enum.Enum):
-    SET_COMMUTATION = 0x01
-    SET_PWM = 0x02
-    SET_START = 0x03
-    SET_CONTROL_MODE = 0x04
-    SET_RPM = 0x05
-    SET_P_VALUE = 0x06
-    SET_I_VALUE = 0x07
-    SET_D_VALUE = 0x08
-    
-    
-
 class GuiHelper():
+    """
+    GuiHelper class to handle the GUI for the application.
+
+    Attributes:
+    -----------
+    _systemData : SystemData
+        An instance of SystemData containing system-wide data.
+    _uartInstances : list
+        A list of available UART instances.
+    _minRPM : int
+        The minimum RPM value.
+    _maxRPM : int
+        The maximum RPM value.
+    _timeDisplayed : int
+        The amount of time to display in the plots.
+    _timeStamp : list
+        A list of timestamps for the plots.
+    _currentList0 : list
+        A list of current values for phase 0.
+    _currentListA : list
+        A list of current values for phase A.
+    _currentListB : list
+        A list of current values for phase B.
+    _currentListC : list
+        A list of current values for phase C.
+    _pwmListActual : list
+        A list of actual PWM values.
+    _pwmListTarget : list
+        A list of target PWM values.
+    _rpmListActual : list
+        A list of actual RPM values.
+    _rpmListTarget : list
+        A list of target RPM values.
+    _currenMax : float
+        The maximum current value.
+    _currenMin : float
+        The minimum current value.
+    _rpmMax : float
+        The maximum RPM value.
+    _rpmMin : float
+        The minimum RPM value.
+    _pwmMax : float
+        The maximum PWM value.
+    _pwmMin : float
+        The minimum PWM value.
+
+    Methods:
+    --------
+    __init__(uartHelper: UartHelper, systemData: SystemData) -> None:
+        Initialize the GuiHelper class.
+    
+    writeLog(msg: str, Tx: bool = False, Rx: bool = False) -> None:
+        Write a log message to the GUI.
+    
+    abentToPlot(value0: float, valueA: float, valueB: float, valueC: float, rpmTarget: float, rpmActual: float, pwmTarget: float, pwmActual: float) -> None:
+        Update the plots with new values.
+    
+    startGui() -> None:
+        Initialize and start the GUI.
+    
+    isGuiRunning() -> bool:
+        Check if the GUI is running.
+    
+    updateData(data: SystemData) -> None:
+        Update the data in the GUI.
+    
+    renderWindow() -> None:
+        Render a new frame in the GUI.
+    
+    cleanUp() -> None:
+        Clean up the GUI context.
+    """
     _systemData = SystemData()
     _uartInstances:list = []
-    _modulationList:list =["Blockkomutirung 120 Unipolar", "Blockkomutirung 120 Bipolar", "Blockkomutirung 180 Unipolar", "Blockkomutirung 180 Bipolar", "S-PWM"]
     _minRPM = 100
     _maxRPM = 15000
     _timeDisplayed = 100
@@ -219,9 +277,8 @@ class GuiHelper():
 # Public calsses
 ########################################################################
    
-    def __init__(self, uartHelper:UartHelper, systemData:SystemData ,guiCallback:callable):
+    def __init__(self, uartHelper:UartHelper, systemData:SystemData):
         self.uartHelper = uartHelper
-        self.guiCallback = guiCallback
         logger.info(f"Init version:{__version__}")
         self._systemData = systemData
         
@@ -241,6 +298,19 @@ class GuiHelper():
                     valueA:float, valueB:float, valueC:float,
                     rpmTarget:float, rpmActual:float,
                     pwmTarget:float,pwmActual:float):
+        """
+        Update the plots with new values.
+
+        Args:
+            value0 (float): The current value for phase 0.
+            valueA (float): The current value for phase A.
+            valueB (float): The current value for phase B.
+            valueC (float): The current value for phase C.
+            rpmTarget (float): The target RPM value.
+            rpmActual (float): The actual RPM value.
+            pwmTarget (float): The target PWM value.
+            pwmActual (float): The actual PWM value.
+        """
         self._updateTimeAxis()
         self._updateCurrentPlot(valueA, valueB, valueC, value0)
         self._updateRpmPlot(target=rpmTarget, actual=rpmActual)
@@ -248,7 +318,8 @@ class GuiHelper():
        
         
     def startGui(self) -> None:
-        """Inizilices and starts the window
+        """
+        Initialize and start the GUI.
         """
         
         self._uartInstances = self.uartHelper.listInstances()
@@ -440,18 +511,20 @@ class GuiHelper():
         
         
     def isGuiRunning(self)-> bool:
-        """Get the state of the window
+        """
+        Check if the GUI is running.
 
         Returns:
-            bool: true if the dearpygui is running
+            bool: True if the GUI is running, False otherwise.
         """
         return dpg.is_dearpygui_running()
     
     def updateData(self, data:SystemData):
-        """Update the data in the gui
+        """
+        Update the data in the GUI.
 
         Args:
-            data (SystemData): The data to update
+            data (SystemData): The data to update.
         """
         self._systemData = data
         self.abentToPlot(value0=data.uartSignals.current_0.value, 

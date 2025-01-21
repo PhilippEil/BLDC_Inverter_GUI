@@ -1,5 +1,5 @@
 """ uartHelper.py
-Tis file contains the UART helper calss. It handels all the work whit the MCU Comunication.
+This file contains the UART helper class. It handles all the work with the MCU communication.
 
 @Author: Philipp Eilmann
 @Version: 0.0.3
@@ -11,48 +11,147 @@ import serial
 import serial.tools.list_ports
 import time
 from copy import deepcopy
-from moduls.models.uartDefines import *
+from moduls.models.uartDefines import UART_Message, UART_Message_Frame, MSG_Type, CyclicSend
 from moduls.models.dataClasses import Signale, UARTSignals
 
 logger = logging.getLogger(__name__)
 
 class UartHelper:
+    """
+    UartHelper class to handle UART communication with the MCU.
+
+    This class provides methods to:
+    - Connect and disconnect from a serial port.
+    - Send and receive UART messages.
+    - Manage cyclic sending of messages.
+    - Update signal values by sending read requests.
+
+    Attributes:
+    -----------
+    rxMessage : UART_Message_Frame
+        A frame to hold the received UART message.
+    _cyclicSend : list
+        A list to hold cyclic send messages.
+    _cyclicSendLock : threading.Lock
+        A lock to manage access to the cyclic send list.
+    _cyclicSendThread : threading.Thread
+        A thread to handle cyclic sending of messages.
+    _read_thread : threading.Thread
+        A thread to handle reading from the serial port.
+    ser : serial.Serial
+        The serial port object.
+    read_thread : threading.Thread
+        The thread used for reading from the serial port.
+    reading : bool
+        A flag to indicate if reading from the serial port is active.
+    buffer : bytearray
+        A buffer to hold incoming data from the serial port.
+    message_stack : list
+        A stack to hold received messages.
+    _uartSignals : UARTSignals
+        An instance of UARTSignals containing signal definitions.
+    isSending : bool
+        A flag to indicate if cyclic sending is active.
+
+    Methods:
+    --------
+    cleanUp() -> None:
+        Clean up resources by stopping reading and cyclic send threads.
     
+    connect(port: str) -> bool:
+        Connect to the specified serial port and start reading and cyclic send threads.
+    
+    disconnect() -> bool:
+        Disconnect from the serial port and stop reading and cyclic send threads.
+    
+    listInstances() -> list:
+        List available serial ports.
+    
+    send(message: UART_Message) -> None:
+        Send a UART message.
+    
+    getMessage():
+        Get the next message from the message stack.
+    
+    addCyclicSend(message: UART_Message, interval: int) -> None:
+        Add a message to be sent cyclically.
+    
+    _start_reading() -> None:
+        Start the reading thread.
+    
+    _stop_reading() -> None:
+        Stop the reading thread.
+    
+    _start_cyclic_send() -> None:
+        Start the cyclic send thread.
+    
+    _stop_cyclic_send() -> None:
+        Stop the cyclic send thread.
+    
+    _updateSignals() -> None:
+        Update the signals by sending read requests.
+    
+    _read_from_port() -> None:
+        Read data from the serial port.
+    
+    _send_cyclic() -> None:
+        Send cyclic messages.
+    """
+
     rxMessage = UART_Message_Frame()
     _cyclicSend = []
     _cyclicSendLock = threading.Lock()
     _cyclicSendThread = threading.Thread()
     _read_thread = threading.Thread()
     
-    
-    def __init__(self, uartSignals:UARTSignals ) -> None:
-        """Init the class
+    def __init__(self, uartSignals: UARTSignals) -> None:
         """
-        self.ser = serial.Serial()
-        self.ser.baudrate = 115200
-        self.ser.timeout = 1
+        Initialize the UartHelper class.
+
+        Args:
+            uartSignals (UARTSignals): An instance of UARTSignals containing signal definitions.
+        """
+        self.ser = serial.Serial(baudrate=115200, timeout=1)
         self.read_thread = None
         self.reading = False
-        self.buffer = bytearray()
         self.message_stack = []
         self._uartSignals = uartSignals
+        self.isSending = False
         logger.info("Init version")
     
     def cleanUp(self) -> None:
+        """
+        Clean up resources by stopping reading and cyclic send threads.
+        """
         self._stop_reading()
         self._stop_cyclic_send()
         logger.info("Clean up done")
         
-    def connect(self, isinstance: str) -> bool:
-        self.ser.port = isinstance
+    def connect(self, port: str) -> bool:
+        """
+        Connect to the specified serial port and start reading and cyclic send threads.
+
+        Args:
+            port (str): The serial port to connect to.
+
+        Returns:
+            bool: True if connection is successful, False otherwise.
+        """
+        self.ser.port = port
         self.ser.open()
         self._start_reading()
         self._start_cyclic_send()
-        logger.info(f"Connecting to: {isinstance}")
+        logger.info(f"Connecting to: {port}")
         self._updateSignals()
         return True
     
     def disconnect(self) -> bool:
+        """
+        Disconnect from the serial port.
+
+        Returns:
+            bool: True if disconnection is successful, False otherwise.
+        """
         self._stop_reading()
         self._stop_cyclic_send()
         self.ser.close()
@@ -60,12 +159,24 @@ class UartHelper:
         return True
     
     def listInstances(self) -> list:
+        """
+        List available serial ports.
+
+        Returns:
+            list: A list of available serial ports.
+        """
         ports = serial.tools.list_ports.comports()
         ret = [port.device for port in ports]
         logger.info(f"The following instances are available: {ret}")
         return ret
     
     def send(self, message: UART_Message) -> None:
+        """
+        Send a UART message.
+
+        Args:
+            message (UART_Message): The UART message to send.
+        """
         if not self.ser.is_open:
             logger.error("Serial port is not open")
             return
@@ -74,19 +185,35 @@ class UartHelper:
         self.ser.write(buf.encode())
         logger.debug(f"Send: {buf}")
         
-    def getMassage(self):
-        if len(self.message_stack) > 0:
+    def getMessage(self):
+        """
+        Get the next message from the message stack.
+
+        Returns:
+            UART_Message: The next message from the message stack, or None if the stack is empty.
+        """
+        if self.message_stack:
             return self.message_stack.pop(0)
         return None
     
     def addCyclicSend(self, message: UART_Message, interval: int) -> None:
+        """
+        Add a message to be sent cyclically.
+
+        Args:
+            message (UART_Message): The UART message to send cyclically.
+            interval (int): The interval in milliseconds between each send.
+        """
         self._stop_cyclic_send()
         cyclic = CyclicSend(deepcopy(message), interval)
         self._cyclicSend.append(cyclic)
         self._start_cyclic_send()
         logger.debug(f"Added cyclic send: {cyclic}")
     
-    def _start_reading(self):
+    def _start_reading(self) -> None:
+        """
+        Start the reading thread.
+        """
         if not self.ser.is_open:
             logger.error("Serial port is not open")
             return
@@ -94,86 +221,98 @@ class UartHelper:
         self._read_thread = threading.Thread(target=self._read_from_port)
         self._read_thread.start()
     
-    def _stop_reading(self):
+    def _stop_reading(self) -> None:
+        """
+        Stop the reading thread.
+        """
         self.reading = False
         if self._read_thread.is_alive():
             self._read_thread.join()
     
-    def _start_cyclic_send(self):
+    def _start_cyclic_send(self) -> None:
+        """
+        Start the cyclic send thread.
+        """
         if not self.ser.is_open:
             logger.error("Serial port is not open")
             return
-        # if len(self._cyclicSend) == 0:
-        #     logger.info("No cyclic send messages available")
-        #     return
         self.isSending = True
         self._cyclicSendThread = threading.Thread(target=self._send_cyclic)
         self._cyclicSendThread.start()
         
-    def _stop_cyclic_send(self):
+    def _stop_cyclic_send(self) -> None:
+        """
+        Stop the cyclic send thread.
+        """
         self.isSending = False
         if self._cyclicSendThread.is_alive():
             self._cyclicSendThread.join()
             
-    def _updateSignals(self):
+    def _updateSignals(self) -> None:
+        """
+        Update the signals by sending read requests.
+        """
         if not self.ser.is_open:
             logger.error("Serial port is not open")
             return
         for signal in self._uartSignals:
-            message = UART_Message()
-            message.type = MSG_Type.READ_REQUEST
-            message.index = signal.index
+            message = UART_Message(type=MSG_Type.READ_REQUEST, index=signal.index)
             signal.lastTransmitted = time.time_ns()
             self.send(message)
     
-    def _read_from_port(self):
+    def _read_from_port(self) -> None:
+        """
+        Read data from the serial port.
+        """
         frame_size = len(self.rxMessage)
         self.ser.reset_input_buffer()
+        append = self.message_stack.append
+        buffer = bytearray()
+        message = UART_Message_Frame()
         while self.reading:
             if self.ser.in_waiting > 0:
-                data = self.ser.read()
-                self.buffer += data
-                
-                while len(self.buffer) >= frame_size:
-                    start_index = -1
-                    end_index = -1
-                    
-                    start_index = self.buffer.find(0x3A)
-                    end_index = start_index + frame_size
-                    
-                    if start_index != -1 and end_index != -1 and end_index <= len(self.buffer):
-                        frame_data = self.buffer[start_index:end_index]
-                        message = UART_Message_Frame()
-                        try:
-                            message.decode(frame_data)
-                            logging.debug(f"Frame: {message}")
-                        except struct.error as e:
-                            logger.error(f"Error unpacking frame: {e}")
-                            
-                        if message.isValide():
-                            self.buffer.clear()
-                            self.message_stack.append(deepcopy(message.message))
-                        else:
-                            logging.debug("Invalid frame")
-                            self.buffer = self.buffer[start_index+1:]
-                    else:
+                data = self.ser.read(self.ser.in_waiting)
+                buffer += data
+
+                while len(buffer) >= frame_size:
+                    start_index = buffer.find(0x3A)
+                    if start_index == -1:
                         break
+
+                    end_index = start_index + frame_size
+                    if end_index > len(buffer):
+                        break
+
+                    frame_data = buffer[start_index:end_index]
+                    try:
+                        message.decode(frame_data)
+                        logging.debug(f"Frame: {message}")
+                    except Exception as e:
+                        logger.error(f"Error unpacking frame: {e}")
+
+                    if message.isValide():
+                        append(deepcopy(message.message))
+                        buffer = buffer[end_index:]
+                    else:
+                        logging.debug("Invalid frame")
+                        buffer = buffer[start_index+1:]
     
-    def _send_cyclic(self):
+    def _send_cyclic(self) -> None:
+        """
+        Send cyclic messages.
+        """
+        send = self.send
+        time_ns = time.time_ns
         while self.isSending:
+            current_time = time_ns()
             for signal in self._uartSignals:
                 if signal.valueWritten:
-                    message = UART_Message()
-                    message.type = MSG_Type.WRITE_REQUEST
-                    message.index = signal.index
-                    message.setPayloadSigned(signal.getRaw())
+                    msg = UART_Message(type=MSG_Type.WRITE_REQUEST, index=signal.index)
+                    msg.setPayloadSigned(signal.getRaw())
                     signal.valueWritten = False
-                    self.send(message)
-                
-                if signal.cyclic and signal.lastTransmitted + (signal.cycleTime * 1000000)< time.time_ns():
-                    message = UART_Message()
-                    message.type = MSG_Type.READ_REQUEST
-                    message.index = signal.index
-                    signal.lastTransmitted = time.time_ns()
-                    self.send(message)
+                    send(msg)
+                elif signal.cyclic and signal.lastTransmitted + (signal.cycleTime * 1000000) < current_time:
+                    msg = UART_Message(type=MSG_Type.READ_REQUEST, index=signal.index)
+                    signal.lastTransmitted = current_time
+                    send(msg)
             time.sleep(0.001)

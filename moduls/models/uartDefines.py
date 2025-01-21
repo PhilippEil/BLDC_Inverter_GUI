@@ -20,9 +20,8 @@ class MSG_Type(Enum):
     WRITE_REQUEST = 0x2
     READ_REQUEST = 0x3
    
-   
 class MSG_INDEX_PARAM(Enum):
-    """ Enum for the message index.
+    """Enum for the message index.
     """
     VALUE_CURRENT_0 = 0x00
     VALUE_CURRENT_A = 0x01
@@ -42,7 +41,7 @@ class MSG_INDEX_PARAM(Enum):
     VALUE_PWM_D = 0x0F
    
 class MSG_INDEX_STATUS(Enum):
-    """ Enum for the message index.
+    """Enum for the message index.
     """
     STATUS_OK = 0x00
     STATUS_READY = 0x01
@@ -97,6 +96,7 @@ class UART_Message:
         raw (bytes): The raw data of the message.
         type (int): The type of the message.
         index (int): The index of the message.
+        isValide (bool): Flag indicating if the message is valid.
 
     Methods:
         __str__(): Returns a string representation of the message.
@@ -115,6 +115,14 @@ class UART_Message:
     isValide = True
     
     def __init__(self, type=None, index=None, payload=0):
+        """
+        Initialize the UART_Message class.
+
+        Args:
+            type (int, optional): The type of the message. Defaults to None.
+            index (int, optional): The index of the message. Defaults to None.
+            payload (int, optional): The payload of the message. Defaults to 0.
+        """
         if type:
             self.type = type
         if index:
@@ -132,27 +140,47 @@ class UART_Message:
         return struct.calcsize(self._format)
 
     def setPayloadUnsigned(self, value):
-        """Sets the payload as an unsigned integer."""
+        """Sets the payload as an unsigned integer.
+
+        Args:
+            value (int): The unsigned integer value to set as the payload.
+        """
         self._rawPayload = struct.pack('>H', value)
 
     def setPayloadSigned(self, value):
-        """Sets the payload as a signed integer."""
+        """Sets the payload as a signed integer.
+
+        Args:
+            value (int): The signed integer value to set as the payload.
+        """
         self._rawPayload = struct.pack('>h', value)
 
     def getPayloadUnsigned(self):
-        """Gets the payload as an unsigned integer."""
+        """Gets the payload as an unsigned integer.
+
+        Returns:
+            int: The unsigned integer payload.
+        """
         if len(self._rawPayload) == 0:
             return 0
         return struct.unpack('>H', self._rawPayload)[0]
 
     def getPayloadSigned(self):
-        """Gets the payload as a signed integer."""
+        """Gets the payload as a signed integer.
+
+        Returns:
+            int: The signed integer payload.
+        """
         if len(self._rawPayload) == 0:
             return 0
         return struct.unpack('>h', self._rawPayload)[0]
 
     def decode(self, data):
-        """Decodes the given data into the message format."""
+        """Decodes the given data into the message format.
+
+        Args:
+            data (bytes): The data to decode.
+        """
         self.raw = data
         id, self._rawPayload = struct.unpack(self._format, data)
         self.type = MSG_Type(id >> 6)
@@ -166,7 +194,11 @@ class UART_Message:
             self.isValide = False
 
     def encode(self):
-        """Encodes the message into bytes."""
+        """Encodes the message into bytes.
+
+        Returns:
+            bytes: The encoded message.
+        """
         if type(self.type) == MSG_Type:
             self.type = self.type.value
         if type(self.index) == MSG_INDEX_PARAM:
@@ -219,20 +251,35 @@ class UART_Message_Frame:
         return struct.calcsize(self._format)
 
     def _crc8(self, data) -> int:
-        """Calculates the CRC-8 checksum for the given data."""
+        """Calculates the CRC-8 checksum for the given data.
+
+        Args:
+            data (bytes): The data to calculate the checksum for.
+
+        Returns:
+            int: The CRC-8 checksum.
+        """
         crc = 0
         for byte in data:
             crc ^= byte
         return crc
 
     def decode(self, data):
-        """Decodes the given data into the message frame format."""
+        """Decodes the given data into the message frame format.
+
+        Args:
+            data (bytes): The data to decode.
+        """
         self.start_byte, self.message_raw, self.crc, self.end_byte, self.EOL = struct.unpack(self._format, data)
         self.message.decode(self.message_raw)
         self._newMessage = True
 
     def encode(self):
-        """Encodes the message frame into bytes."""
+        """Encodes the message frame into bytes.
+
+        Returns:
+            bytes: The encoded message frame.
+        """
         if self.start_byte is None:
             self.start_byte = self._start_byte_Default
         if self.end_byte is None:
@@ -245,12 +292,20 @@ class UART_Message_Frame:
         return struct.pack(self._format, self.start_byte, self.message_raw, self.crc, self.end_byte, self.EOL)
 
     def isValide(self):
-        """Checks if the message frame is valid by verifying the CRC."""
+        """Checks if the message frame is valid by verifying the CRC.
+
+        Returns:
+            bool: True if the message frame is valid, False otherwise.
+        """
         crc = self._crc8(self.message_raw)
         return self.start_byte == self._start_byte_Default and self.end_byte == self._end_byte_Default and self.crc == crc and self.message.isValide
 
     def isAvailable(self):
-        """Checks if a new valid message is available."""
+        """Checks if a new valid message is available.
+
+        Returns:
+            bool: True if a new valid message is available, False otherwise.
+        """
         if self.isValide() and self._newMessage:
             self._newMessage = False
             return True
@@ -262,7 +317,7 @@ class CyclicSend:
     The CyclicSend class represents a message that is sent at regular intervals.
 
     Attributes:
-        message (UART_Message_Frame): The message to be sent.
+        message (UART_Message): The message to be sent.
         interval (int): The interval in milliseconds at which the message should be sent.
         lastSend (int): The timestamp of the last time the message was sent (default is 0).
 
@@ -278,6 +333,11 @@ class CyclicSend:
         return f"Message: {self.message}, Interval: {self.interval}, LastSend: {self.lastSend}"
     
     def isTime(self):
+        """Checks if the interval has passed since the last time the message was sent.
+
+        Returns:
+            bool: True if the interval has passed, False otherwise.
+        """
         if (time.time_ns() - self.lastSend) >= (self.interval * 1000000):
             self.lastSend = time.time_ns()
             return True
