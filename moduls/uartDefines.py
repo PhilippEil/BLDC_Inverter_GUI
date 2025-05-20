@@ -1,9 +1,16 @@
 """ uartDefines.py
-This file contains the data classes for the UART communication.
+
+Main module for defining UART message formats and handling CRC checks.
+This module contains classes and enums for UART message types, indices,
+and CRC checks. It also provides a class for cyclic sending of messages
+at specified intervals.
+    
 
 @Author: Philipp Eilmann
-@Version: 0.0.1
+@copyright: 2025 Philipp Eilmann
 """
+
+__version__ = "0.0.2"
 import struct
 from enum import Enum
 import dataclasses
@@ -39,12 +46,20 @@ class MSG_INDEX_PARAM(Enum):
     VALUE_PWM_P = 0x0D
     VALUE_PWM_I = 0x0E
     VALUE_PWM_D = 0x0F
+    VALUE_REMOTE_PWM = 0x10
    
 class MSG_INDEX_STATUS(Enum):
     """Enum for the message index.
     """
     STATUS_OK = 0x00
     STATUS_READY = 0x01
+    STATUS_REMOTE_READY = 0x02
+    STOP_EMERGENCY = 0x10
+    STOP_OVER_TEMP = 0x11
+    STOP_OVER_CURRENT = 0x12
+    STOP_OVER_VOLTAGE = 0x13
+    STOP_UNDER_VOLTAGE = 0x14
+    STOP_SYSTEM_ERROR = 0x15
     STATUS_SYSTEM_ERROR = 0x3e
     STATUS_ERROR = 0x3f
    
@@ -57,14 +72,15 @@ CommutationsTypeValues = {
 }
 
 SwishFrequencyValues = {
-    "10 MHz": 0x10, 
-    "20 MHz": 0x11, 
-    "40 MHz": 0x20,
-    "50 MHz": 0x21,
-    "80 MHz": 0x30,
-    "100 MHz": 0x31,
-    "200 MHz": 0x40,
-    "400 MHz": 0x41,
+    "8 kHz": 0x09,
+    "10 kHz": 0x10, 
+    "20 kHz": 0x11, 
+    "40 kHz": 0x20,
+    "50 kHz": 0x21,
+    "80 kHz": 0x30,
+    "100 kHz": 0x31,
+    "200 kHz": 0x40,
+    "400 kHz": 0x41,
 }
 
 ControlMethodValues = {
@@ -75,13 +91,14 @@ ControlMethodValues = {
 }
     
 UpdateRates = {
-    "1 ms": 1,
-    "10 ms": 10,
+    "15 ms": 15,
     "100 ms": 100,
+    "250 ms": 250,
     "500 ms": 500,
     "1 s": 1000,
     "5 s": 5000,
     "10 s": 10000,
+    "20 s": 20000,
     "30 s": 30000,
     "1 min": 60000,
 }

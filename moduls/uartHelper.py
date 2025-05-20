@@ -1,9 +1,15 @@
 """ uartHelper.py
-This file contains the UART helper class. It handles all the work with the MCU communication.
+
+This module provides a helper class for UART communication with the MCU.
+It includes methods for connecting to a serial port, sending and receiving messages,
+and managing cyclic sending of messages.
+It also includes methods for updating signal values by sending read requests.
 
 @Author: Philipp Eilmann
-@Version: 0.0.3
+@copyright: 2025 Philipp Eilmann
 """
+
+__version__ = "0.0.2"
 
 import threading
 import logging
@@ -11,8 +17,8 @@ import serial
 import serial.tools.list_ports
 import time
 from copy import deepcopy
-from moduls.models.uartDefines import UART_Message, UART_Message_Frame, MSG_Type, CyclicSend
-from moduls.models.dataClasses import Signale, UARTSignals
+from moduls.uartDefines import UART_Message, UART_Message_Frame, MSG_Type, CyclicSend
+from moduls.dataClasses import Signale, UARTSignals
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +123,7 @@ class UartHelper:
         self.message_stack = []
         self._uartSignals = uartSignals
         self.isSending = False
-        logger.info("Init version")
+        logger.info(f"Init version: {__version__}")
     
     def cleanUp(self) -> None:
         """
@@ -259,6 +265,7 @@ class UartHelper:
             message = UART_Message(type=MSG_Type.READ_REQUEST, index=signal.index)
             signal.lastTransmitted = time.time_ns()
             self.send(message)
+            time.sleep(0.01)
     
     def _read_from_port(self) -> None:
         """
@@ -310,9 +317,10 @@ class UartHelper:
                     msg = UART_Message(type=MSG_Type.WRITE_REQUEST, index=signal.index)
                     msg.setPayloadSigned(signal.getRaw())
                     signal.valueWritten = False
+                    signal.lastTransmitted = current_time
                     send(msg)
                 elif signal.cyclic and signal.lastTransmitted + (signal.cycleTime * 1000000) < current_time:
                     msg = UART_Message(type=MSG_Type.READ_REQUEST, index=signal.index)
                     signal.lastTransmitted = current_time
                     send(msg)
-            time.sleep(0.001)
+            time.sleep(0.002)
