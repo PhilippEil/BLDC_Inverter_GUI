@@ -15,6 +15,8 @@ from moduls.uartHelper import UartHelper
 from moduls.uartDefines import MSG_Type, MSG_INDEX_STATUS
 from moduls.dataClasses import SystemData
 import logging
+import time
+import threading
 
 
 logger = logging.getLogger(__name__)
@@ -48,6 +50,7 @@ class App:
     """
     
     _SystemData = SystemData()
+    _newData = False
     
     def __init__(self):
         """
@@ -56,6 +59,20 @@ class App:
         self.uart = UartHelper(self._SystemData.uartSignals)
         self.gui = GuiHelper(self.uart, self._SystemData)
         self.gui.startGui()
+        
+    def _GUI_Update_Thread(self):
+        """
+        Thread to update the GUI with new data.
+        This function is called when new data is received from the UART.
+        """
+        logger.debug("GUI update thread started")
+        while self.gui.isGuiRunning():
+            if self._newData:
+                self._newData = False
+                self.gui.updateData(self._SystemData)
+            time.sleep(10E-3)  # Sleep for 10ms to avoid busy waiting
+        logger.debug("GUI update thread stopped")
+        
     
     def cleanUp(self):
         """
@@ -69,7 +86,6 @@ class App:
         Read and process UART messages.
         """
         message = self.uart.getMessage()
-        newData = False
         signal_dict = {signal.index: signal for signal in self._SystemData.uartSignals}
         while message is not None:
             logger.debug(f"Read the message: {message}")
@@ -77,7 +93,7 @@ class App:
                 # Process response messages
                 signal = signal_dict.get(message.index)
                 if signal:
-                    newData = True
+                    self._newData = True
                     if signal.allow_negative:
                         signal.update(message.getPayloadSigned())
                     else:
@@ -111,14 +127,17 @@ class App:
                         self.gui.writeLog(f"MCU Status Unknown: {message.getPayloadSigned()}", Rx=True)
                         logger.error(f"Unknown message index: {message.index}")
                         return
-            if newData:
-                # todo: remove this function and add a separate thread for the GUI
-                self.gui.updateData(self._SystemData)
+
             message = self.uart.getMessage()
             
         
     def run(self):
         self.gui.writeLog("Starting GUI")
+        guiThread = threading.Thread(target=self._GUI_Update_Thread, daemon=True)
+        guiThread.start()
         while self.gui.isGuiRunning():
             self.readUART()
             self.gui.renderWindow()
+            time.sleep(1E-3)
+        logger.debug("Main loop stopped")
+        guiThread.join()

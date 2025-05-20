@@ -133,21 +133,34 @@ class UartHelper:
         self._stop_cyclic_send()
         logger.info("Clean up done")
         
-    def connect(self, port: str) -> bool:
+    def connect(self, port: str, updateSignals:bool=False) -> bool:
         """
         Connect to the specified serial port and start reading and cyclic send threads.
 
         Args:
             port (str): The serial port to connect to.
+            updateSignals (bool): Flag to indicate if signals should be updated after connection.
 
         Returns:
             bool: True if connection is successful, False otherwise.
         """
+        if self.ser.is_open:
+            logger.error("Serial port is already open")
+            return False
         self.ser.port = port
         self.ser.open()
+        if not self.ser.is_open:
+            logger.error(f"Failed to open serial port: {port}")
+            return False
+        self.ser.reset_input_buffer()
+        self.ser.reset_output_buffer()
         self._start_reading()
         self._start_cyclic_send()
         logger.info(f"Connecting to: {port}")
+        if updateSignals:
+            self._updateSignals()
+        else:
+            logger.info("No signal update requested")
         self._updateSignals()
         return True
     
@@ -160,7 +173,9 @@ class UartHelper:
         """
         self._stop_reading()
         self._stop_cyclic_send()
-        self.ser.close()
+        if not self.ser.is_open:
+            logger.error("Serial port is not open")
+            self.ser.close()
         logger.info("Disconnected")
         return True
     

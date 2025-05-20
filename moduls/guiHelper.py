@@ -133,7 +133,7 @@ class GuiHelper():
         logger.info(f"presst button: {sender = } {buttonLabel = }")
         if buttonLabel == "Connect":
             instance = dpg.get_value("uart_combo")
-            ret = self.uartHelper.connect(instance)
+            ret = self.uartHelper.connect(instance, self._systemData.updateSignalsAtConnect)
             if ret:
                 # connected to host.
                 self.writeLog("Connected to host")
