@@ -47,6 +47,8 @@ class MSG_INDEX_PARAM(Enum):
     VALUE_PWM_I = 0x0E
     VALUE_PWM_D = 0x0F
     VALUE_REMOTE_PWM = 0x10
+    VALUE_REMOTE_FREQUENCY = 0x11
+    VALUE_REMOTE_IMPULSE = 0x12
    
 class MSG_INDEX_STATUS(Enum):
     """Enum for the message index.

@@ -435,6 +435,34 @@ class UARTSignals:
             isPersistent=True,
             noRetransmit=True
         )
+        self.remote_freq: Signale = Signale(
+            name="Remote Frequency",
+            value=0,
+            unite="Hz",
+            index=MSG_INDEX_PARAM.VALUE_REMOTE_FREQUENCY,
+            factor=0.001,
+            offset=0,
+            allow_negative=False,
+            isRaw=False,
+            cycleTime=1000,
+            cyclic=True,
+            isPersistent=True,
+            noRetransmit=True
+        )
+        self.remote_imp: Signale = Signale(
+            name="Remote Impulse",
+            value=0,
+            unite="ms",
+            index=MSG_INDEX_PARAM.VALUE_REMOTE_IMPULSE,
+            factor=0.001,
+            offset=0,
+            allow_negative=False,
+            isRaw=False,
+            cycleTime=1000,
+            cyclic=True,
+            isPersistent=True,
+            noRetransmit=True
+        )
 
     def __iter__(self):
         """

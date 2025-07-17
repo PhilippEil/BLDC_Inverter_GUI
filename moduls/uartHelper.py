@@ -175,9 +175,19 @@ class UartHelper:
         self._stop_cyclic_send()
         if not self.ser.is_open:
             logger.error("Serial port is not open")
-            self.ser.close()
+            return True
+        self.ser.close()
         logger.info("Disconnected")
         return True
+    
+    def isConnected(self) -> bool:
+        """
+        Check if the serial port is connected.
+
+        Returns:
+            bool: True if connected, False otherwise.
+        """
+        return self.ser.is_open
     
     def listInstances(self) -> list:
         """

@@ -97,7 +97,7 @@ class GuiHelper():
     _uartInstances:list = []
     _minRPM = 1000
     _maxRPM = 30000
-    _timeDisplayed = 100
+    _timeDisplayed = 400
     
     _timeStamp:list = [0]
     _currentList0:list = [0]

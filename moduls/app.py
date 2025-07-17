@@ -67,9 +67,9 @@ class App:
         """
         logger.debug("GUI update thread started")
         while self.gui.isGuiRunning():
-            if self._newData:
-                self._newData = False
+            if self.uart.isConnected():
                 self.gui.updateData(self._SystemData)
+                
             time.sleep(10E-3)  # Sleep for 10ms to avoid busy waiting
         logger.debug("GUI update thread stopped")
         
